@@ -1,0 +1,362 @@
+
+<html>
+  <head>
+    <meta charset="UTF-8"/>
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous"/>
+    <!-- Optional theme -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous"/>
+
+    <style>
+      ul {
+        list-style-type: none;
+        padding-left: 0;
+      }
+
+      .user-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 5px;
+        float: left;
+      }
+
+      .main-container {
+        background-color: #fff;
+        border: 1px solid #e1e8ed;
+        line-height: 16px;
+        border-radius: 5px;
+        margin: 50px;
+        width: 320px;
+        min-height: 50px;
+      }
+
+      .github-url {
+        position: absolute;
+        left: 0;
+        top: 25px;
+      }
+
+      .user-info {
+        float: left;
+        width: 230px;
+        margin-left: 10px;
+        position: relative;
+      }
+
+      .main-header {
+        margin-bottom: 10px;
+      }
+
+      .main-header h3 {
+        display: inline;
+        font-weight: 300;
+        line-height: 22px;
+        font-size: 18px;
+        color: #66757f;
+      }
+
+      .user-container {
+        margin-top: 10px;
+      }
+
+      .refresh-user {
+        position: absolute;
+        top: 2px;
+        right: 0;
+        color: #ccd6dd;
+        font-style: normal;
+        font-weight: normal;
+      }
+
+      .refresh-users, .refresh-user {
+        cursor: pointer;
+      }
+
+      .user-name {
+        font-size: 13px;
+        color: #8899a6;
+      }
+
+      .user-suggestions {
+        padding: 15px 15px 0px 15px;
+        border-bottom: 1px solid #e1e8ed;
+      }
+
+      .location {
+        padding: 15px;
+        background: #f5f8fa;
+      }
+
+      .main-header small {
+        line-height: 1;
+        margin-left: 5px;
+      }
+
+      .main-header p {
+        font-size: 12px;
+        color: #8899a6;
+      }
+
+      @keyframes loading-spinner {
+        0% {
+          -webkit-transform: rotate(0deg);
+          transform: rotate(0deg);
+        }
+        100% {
+          -webkit-transform: rotate(359deg);
+          transform: rotate(359deg);
+        }
+      }
+
+      .loading-spinner-icon {
+        animation: loading-spinner 1s infinite linear;
+        margin-left: 125px;
+      }
+
+
+    </style>
+
+  </head>
+
+  <body>
+    <div id="root"></div>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/react/15.4.1/react.min.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/react/15.4.1/react-with-addons.min.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/react/15.4.1/react-dom.min.js"></script>
+      <script type="text/javascript" src="https://unpkg.com/babel-standalone@6.15.0/babel.min.js"></script>
+
+      <script type="text/babel">
+        class KyndiGithubWidget extends React.Component {
+        constructor(props) {
+          super(props);
+          this.state = {
+            currentLocation: {
+              latitude: null,
+              longitude: null,
+              city: ""
+            },
+            warning: "",
+            error: "",
+            page: 1,
+            totalUserCount: 0,
+            totalLoadedUserCount: 0,
+            userCountToShow: 3,
+            users: [],
+            shownUsers: [],
+            totalShownUserCount: 0
+          };
+        }
+
+        render() {
+          return (
+            <div className="main-container">
+            {this.state.warning ?
+              <div className="alert alert-warning warning-box" role="alert">{this.state.warning}</div> :
+              ""
+            }
+            {this.state.error ?
+              <div className="alert alert-danger error-box" role="alert">{this.state.error}</div> :
+              ""
+            }
+              <div className="user-suggestions">
+                <div className="main-header">
+                  <h3>Whom to visit</h3>
+                  <small>.</small>
+                  <a onClick={this.refreshAllUsers.bind(this)} className="btn-link refresh-users"><small>Refresh</small></a>
+                </div>
+                {this.state.error ?
+                  "" :
+                  (this.state.shownUsers.length <= 0) ?
+                    <span className="glyphicon glyphicon-refresh loading-spinner-icon" aria-hidden="true"></span> :
+                    <ul>
+                    {this.state.shownUsers.map((user, index) => {
+                      return (
+                        <li key={index} className="clearfix user-container">
+                          <img className="user-avatar" src={user.avatar_url}/>
+                          <div className="user-info">
+                            <span className="user-name">@{user.login}</span>
+                            <a className="btn btn-default btn-xs github-url" role="button" href={user.html_url}>Github URL</a>
+                            <span onClick={this.refreshSingleUser.bind(this, index)} className="glyphicon glyphicon-remove refresh-user" aria-hidden="true"></span>
+                          </div>
+                        </li>);
+                    }, this)}
+                    </ul>
+                }
+              </div>
+              <div className="location">Showing users in <strong>{this.state.currentLocation.city}</strong></div>
+              </div>
+          );
+        }
+
+        componentDidMount() {
+          this.getCurrentPosition().then(() => {
+            this.getCurrentLocation().then(() => {
+              this.getUsersBasedOnLocation().then(() => {
+                this.refreshAllUsers();
+              });
+            });
+          });
+        }
+
+        refreshSingleUser(index) {
+          if (this.state.totalLoadedUserCount > this.state.totalShownUserCount) {
+            let totalShownUserCount = this.state.totalShownUserCount;
+            let shownUsers = this.state.shownUsers;
+            shownUsers[index] = this.state.users[totalShownUserCount];
+            totalShownUserCount++;
+            this.setState({
+              shownUsers,
+              totalShownUserCount
+            });
+          } else if (this.state.totalLoadedUserCount == this.state.totalUserCount) {
+            this.setState({
+              warning: "No more users to display"
+            });
+          } else {
+            this.getUsersBasedOnLocation().then(() => {
+              this.refreshSingleUser(index);
+            });
+          }
+        }
+
+        refreshAllUsers() {
+          if (this.state.totalUserCount == this.state.totalShownUserCount) {
+            this.setState({
+              warning: "No more users to display"
+            });
+          } else if (this.state.totalUserCount >= this.state.totalShownUserCount + this.state.userCountToShow) {
+            if (this.state.totalLoadedUserCount >= this.state.totalShownUserCount + this.state.userCountToShow) {
+              let shownUsers = [];
+              for (var i = this.state.totalShownUserCount, j = 0; i - this.state.totalShownUserCount < this.state.userCountToShow; i++, j++) {
+                shownUsers[j] = this.state.users[i];
+              }
+              this.setState({
+                shownUsers,
+                totalShownUserCount: i
+              });
+            } else {
+              this.getUsersBasedOnLocation().then(() => {
+                this.refreshAllUsers();
+              });
+            }
+          } else {
+            let shownUsers = [];
+            for (var i = this.state.totalShownUserCount, j = 0; i < this.state.totalUserCount; i++, j++) {
+              shownUsers[j] = this.state.users[i];
+            }
+            this.setState({
+              shownUsers,
+              totalShownUserCount: i
+            });
+          }
+        }
+
+        AJAXPromise(method, url) {
+          return new Promise((resolve, reject) => {
+            let httpRequest = new XMLHttpRequest();
+            httpRequest.onreadystatechange = () => {
+              if (httpRequest.readyState === XMLHttpRequest.DONE) {
+                if (httpRequest.status === 200) {
+                  resolve(JSON.parse(httpRequest.responseText));
+                } else {
+                  reject(httpRequest);
+                }
+              }
+            };
+            httpRequest.open(method, url);
+            httpRequest.send();
+          });
+        }
+
+        getCurrentPosition() {
+          return new Promise((resolve, reject) => {
+            if (!navigator.geolocation) {
+              this.setState({
+                error: "Geolocation API is not supported by your browser"
+              });
+              return;
+            }
+            navigator.geolocation.getCurrentPosition((position) => {
+              let latitude = position.coords.latitude;
+              let longitude = position.coords.longitude;
+              this.setState({
+                currentLocation: {
+                  latitude,
+                  longitude
+                }
+              }, resolve);
+            }, () => {
+              this.setState({
+                error: "Unable to fetch your position"
+              }, reject);
+            });
+          });
+        }
+
+        getCurrentLocation() {
+          return new Promise((resolve, reject) => {
+            let url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${this.state.currentLocation.latitude},${this.state.currentLocation.longitude}&key=AIzaSyArQVHkpK8FpCNJ8PIr_0WH2PMGWsooCH4`;
+            let method = "GET";
+
+            this.AJAXPromise(method, url).then((data) => {
+              let results = data.results;
+              let city = "";
+              for (let i = 0; i < results.length; i++) {
+                if (results[i].types.indexOf("locality") > -1) {
+                  let addComponents = results[i].address_components;
+                  for (let j = 0; j < addComponents.length; j++) {
+                    if (addComponents[j].types.indexOf("locality") > -1) {
+                      city = addComponents[j].long_name;
+                      break;
+                    }
+                  }
+                }
+              }
+              if (city == "") {
+                this.setState({
+                  error: "Unable to fetch your location"
+                }, reject);
+              } else {
+                this.setState({
+                  currentLocation: {
+                    city
+                  }
+                }, resolve);
+              }
+            }).catch(() => {
+              this.setState({
+                error: "Unable to fetch your location"
+              }, reject);
+            });
+          });
+        }
+
+        getUsersBasedOnLocation() {
+          return new Promise((resolve, reject) => {
+            let url = `https://api.github.com/search/users?q=location:${this.state.currentLocation.city}&page=${this.state.page}`;
+            let method = "GET";
+            this.AJAXPromise(method, url).then((data) => {
+              if (data.items.length == 0) {
+                reject(0);
+              }
+              this.setState({
+                totalUserCount: data.total_count,
+                totalLoadedUserCount: this.state.totalLoadedUserCount + data.items.length,
+                users: this.state.users.concat(data.items),
+                page: this.state.page + 1
+              }, resolve);
+            }).catch(() => {
+              this.setState({
+                error: "Unable to fetch github users"
+              }, reject);
+            });
+          });
+        }
+
+      }
+
+      ReactDOM.render(<KyndiGithubWidget></KyndiGithubWidget>, document.getElementById('root'));
+    </script>
+
+  </body>
+</html>
